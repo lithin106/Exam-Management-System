@@ -1,173 +1,119 @@
 import { useNavigate } from "react-router-dom";
+import ThemeToggle from "../components/ThemeToggle";
 
 function FacultyDashboard() {
-
     const navigate = useNavigate();
 
-    const user =
-        JSON.parse(
-            localStorage.getItem("user")
-        );
-
+    const user = JSON.parse(
+        localStorage.getItem("user")
+    );
 
     const logout = () => {
-
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-
         navigate("/");
-
     };
 
-
     return (
-
         <div className="dashboard">
-
             <header className="topbar">
-
-                <div>
-                    <h1>
-                        Exam Seating System
-                    </h1>
-
-                    <span>
-                        Faculty Portal
-                    </span>
+                <div className="topbar-brand">
+                    <div>
+                        <h1>Exam Management System</h1>
+                        <span className="portal-tag">Faculty Portal</span>
+                    </div>
                 </div>
 
+                <div className="topbar-nav">
+                    <ThemeToggle />
+                    <div className="profile-pill">
+                        <span>{user?.name || "Faculty"}</span>
+                    </div>
 
-                <div className="profile">
-
-                    <span>
-                        {user?.name}
-                    </span>
-
-                    <button onClick={logout}>
+                    <button className="btn-nav-logout" onClick={logout}>
                         Logout
                     </button>
-
                 </div>
-
             </header>
 
-
             <main className="dashboard-content">
-
-                <h2>
-                    Faculty Dashboard
-                </h2>
-
-                <p>
-                    Manage students, rooms,
-                    examinations and seating
-                    arrangements.
-                </p>
-
+                <div className="page-header">
+                    <div className="page-header-left">
+                        <h2 className="page-title">Faculty Dashboard</h2>
+                        <p className="page-subtitle">
+                            Examination and Seating Management System
+                        </p>
+                    </div>
+                </div>
 
                 <div className="dashboard-grid">
-
                     <div className="dashboard-card">
-
-                        <h3>
-                            Students
-                        </h3>
-
+                        <h3>Student Management</h3>
                         <p>
-                            Upload and manage
-                            student information.
+                            Upload student records via Excel or PDF and view enrolled candidates.
                         </p>
-
                         <button
-                            onClick={() =>
-                                navigate(
-                                    "/faculty/students"
-                                )
-                            }
+                            className="btn-primary"
+                            onClick={() => navigate("/faculty/students")}
                         >
                             Manage Students
                         </button>
-
                     </div>
 
-
                     <div className="dashboard-card">
-
-                        <h3>
-                            Examination Rooms
-                        </h3>
-
+                        <h3>Examination Rooms</h3>
                         <p>
-                            Manage classrooms and
-                            seating capacity.
+                            Configure exam halls, manage row and column dimensions, and view usable seating capacities.
                         </p>
-
                         <button
-                            onClick={() =>
-                                navigate(
-                                    "/faculty/rooms"
-                                )
-                            }
+                            className="btn-primary"
+                            onClick={() => navigate("/faculty/rooms")}
                         >
                             Manage Rooms
                         </button>
-
                     </div>
 
-
                     <div className="dashboard-card">
-
-                        <h3>
-                            Examinations
-                        </h3>
-
+                        <h3>Examinations</h3>
                         <p>
-                            Create and manage
-                            examinations.
+                            Create exam schedules, select examination halls, and configure session timings.
                         </p>
-
                         <button
-                            onClick={() =>
-                                navigate(
-                                    "/faculty/exams"
-                                )
-                            }
+                            className="btn-primary"
+                            onClick={() => navigate("/faculty/exams")}
                         >
                             Manage Exams
                         </button>
-
                     </div>
 
+                    <div className="dashboard-card">
+                        <h3>Faculty Allocation</h3>
+                        <p>
+                            Assign faculty invigilators to examination rooms, validate faculty counts, and generate allocation sheets.
+                        </p>
+                        <button
+                            className="btn-primary"
+                            onClick={() => navigate("/faculty/allocation")}
+                        >
+                            Allocate Faculty
+                        </button>
+                    </div>
 
                     <div className="dashboard-card">
-
-                        <h3>
-                            Seating Arrangement
-                        </h3>
-
+                        <h3>Seating Arrangement</h3>
                         <p>
-                            Generate automated
-                            examination seating.
+                            Generate column-wise seating allocations, export Seating Plan PDFs, and generate Notice Board sheets.
                         </p>
-
                         <button
-                            onClick={() =>
-                                navigate(
-                                    "/faculty/seating"
-                                )
-                            }
+                            className="btn-primary"
+                            onClick={() => navigate("/faculty/seating")}
                         >
                             Generate Seating
                         </button>
-
                     </div>
-
                 </div>
-
             </main>
-
         </div>
-
     );
 }
 

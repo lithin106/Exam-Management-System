@@ -1,15 +1,12 @@
 const Exam = require("../models/Exam");
 const Room = require("../models/Room");
-
+const SeatAssignment = require("../models/SeatAssignment");
 
 // ======================================================
 // CREATE EXAM
 // ======================================================
 
-const createExam = async (
-    req,
-    res
-) => {
+const createExam = async (req, res) => {
 
     try {
 
@@ -21,7 +18,10 @@ const createExam = async (
             endTime,
             semester,
             departments,
-            rooms
+            rooms,
+            studentsPerBench,
+            commonPaperGroups,
+            roomConfigurations
         } = req.body;
 
 
@@ -39,34 +39,33 @@ const createExam = async (
         ) {
 
             return res.status(400).json({
-
                 success: false,
-
-                message:
-                    "All exam details are required"
-
+                message: "All exam details are required"
             });
 
         }
 
+        // Validate that exam date is not in the past
+        const parsedExamDate = new Date(examDate);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
 
-        if (
-            !Array.isArray(
-                departments
-            ) ||
-            departments.length === 0
-        ) {
+        const examDay = new Date(parsedExamDate);
+        examDay.setHours(0, 0, 0, 0);
 
+        if (examDay < todayStart) {
             return res.status(400).json({
-
                 success: false,
-
-                message:
-                    "At least one department must be selected"
-
+                message: "Cannot schedule an examination in the past. Please select today or a future date."
             });
-
         }
+
+
+        const examDepartments =
+            Array.isArray(departments) &&
+            departments.length > 0
+                ? departments
+                : ["CSE"];
 
 
         if (
@@ -75,12 +74,31 @@ const createExam = async (
         ) {
 
             return res.status(400).json({
-
                 success: false,
-
                 message:
                     "At least one room must be selected"
+            });
 
+        }
+
+
+        // ------------------------------------------------
+        // BENCH CONFIGURATION
+        // ------------------------------------------------
+
+        const benchSize =
+            Number(studentsPerBench) || 2;
+
+
+        if (
+            benchSize < 1 ||
+            benchSize > 6
+        ) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Students per bench must be between 1 and 6"
             });
 
         }
@@ -92,14 +110,10 @@ const createExam = async (
 
         const selectedRooms =
             await Room.find({
-
                 _id: {
                     $in: rooms
                 },
-
-                isAvailable:
-                    true
-
+                isAvailable: true
             });
 
 
@@ -109,12 +123,9 @@ const createExam = async (
         ) {
 
             return res.status(400).json({
-
                 success: false,
-
                 message:
                     "One or more rooms are invalid or unavailable"
-
             });
 
         }
@@ -134,7 +145,7 @@ const createExam = async (
                     subject.trim(),
 
                 examDate:
-                    new Date(examDate),
+                    parsedExamDate,
 
                 startTime,
 
@@ -143,9 +154,23 @@ const createExam = async (
                 semester:
                     String(semester),
 
-                departments,
+                departments:
+                    examDepartments,
 
                 rooms,
+
+                studentsPerBench:
+                    benchSize,
+
+                commonPaperGroups:
+                    commonPaperGroups
+                        ? String(commonPaperGroups).trim()
+                        : "",
+
+                roomConfigurations:
+                    Array.isArray(roomConfigurations)
+                        ? roomConfigurations
+                        : [],
 
                 status:
                     "draft",
@@ -192,7 +217,6 @@ const createExam = async (
             error
         );
 
-
         res.status(500).json({
 
             success: false,
@@ -211,33 +235,41 @@ const createExam = async (
 
 
 // ======================================================
-// GET ALL EXAMS
+// GET ALL ACTIVE EXAMS (Auto-cleans expired exams)
 // ======================================================
 
-const getExams = async (
-    req,
-    res
-) => {
+const getExams = async (req, res) => {
 
     try {
 
+        // Auto clean up expired exams whose examDate has passed (prior to today)
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const expiredExams = await Exam.find({
+            examDate: { $lt: todayStart }
+        });
+
+        if (expiredExams.length > 0) {
+            const expiredIds = expiredExams.map(e => e._id);
+            await SeatAssignment.deleteMany({ exam: { $in: expiredIds } });
+            await Exam.deleteMany({ _id: { $in: expiredIds } });
+        }
+
+        // Return only active & upcoming exams
         const exams =
-            await Exam.find({})
-                .populate(
-                    "rooms"
-                )
+            await Exam.find({
+                examDate: { $gte: todayStart }
+            })
+                .populate("rooms")
                 .populate(
                     "createdBy",
                     "name email"
                 )
                 .sort({
-
                     examDate: 1,
-
                     startTime: 1,
-
                     createdAt: -1
-
                 });
 
 
@@ -261,7 +293,6 @@ const getExams = async (
             error
         );
 
-
         res.status(500).json({
 
             success: false,
@@ -283,10 +314,7 @@ const getExams = async (
 // GET SINGLE EXAM
 // ======================================================
 
-const getExam = async (
-    req,
-    res
-) => {
+const getExam = async (req, res) => {
 
     try {
 
@@ -332,7 +360,6 @@ const getExam = async (
             error
         );
 
-
         res.status(500).json({
 
             success: false,
@@ -354,10 +381,7 @@ const getExam = async (
 // DELETE EXAM
 // ======================================================
 
-const deleteExam = async (
-    req,
-    res
-) => {
+const deleteExam = async (req, res) => {
 
     try {
 
@@ -380,6 +404,11 @@ const deleteExam = async (
 
         }
 
+        // Also clean up any seat assignments associated with this deleted exam
+        await SeatAssignment.deleteMany({
+            exam: req.params.id
+        });
+
 
         res.status(200).json({
 
@@ -398,7 +427,6 @@ const deleteExam = async (
             "Delete exam error:",
             error
         );
-
 
         res.status(500).json({
 

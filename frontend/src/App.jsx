@@ -1,7 +1,8 @@
 import {
     BrowserRouter,
     Routes,
-    Route
+    Route,
+    Navigate
 } from "react-router-dom";
 
 import Login from "./pages/Login";
@@ -11,90 +12,103 @@ import Students from "./pages/Students";
 import Rooms from "./pages/Rooms";
 import Exams from "./pages/Exams";
 import SeatingPlan from "./pages/SeatingPlan";
+import FacultyAllocation from "./pages/FacultyAllocation";
 
+function ProtectedRoute({ children, allowedRole }) {
+    const token = localStorage.getItem("token");
+    const userStr = localStorage.getItem("user");
+
+    if (!token || !userStr) {
+        return <Navigate to="/" replace />;
+    }
+
+    try {
+        const user = JSON.parse(userStr);
+        if (allowedRole && user.role !== allowedRole) {
+            return <Navigate to="/" replace />;
+        }
+        return children;
+    } catch {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        return <Navigate to="/" replace />;
+    }
+}
 
 function App() {
-
     return (
-
         <BrowserRouter>
-
             <Routes>
-
-                {/* LOGIN */}
-
                 <Route
                     path="/"
                     element={<Login />}
                 />
 
-
-                {/* FACULTY DASHBOARD */}
-
                 <Route
                     path="/faculty/dashboard"
                     element={
-                        <FacultyDashboard />
+                        <ProtectedRoute allowedRole="faculty">
+                            <FacultyDashboard />
+                        </ProtectedRoute>
                     }
                 />
-
-
-                {/* STUDENT MANAGEMENT */}
 
                 <Route
                     path="/faculty/students"
                     element={
-                        <Students />
+                        <ProtectedRoute allowedRole="faculty">
+                            <Students />
+                        </ProtectedRoute>
                     }
                 />
-
-
-                {/* ROOM MANAGEMENT */}
 
                 <Route
                     path="/faculty/rooms"
                     element={
-                        <Rooms />
+                        <ProtectedRoute allowedRole="faculty">
+                            <Rooms />
+                        </ProtectedRoute>
                     }
                 />
-
-
-                {/* EXAM MANAGEMENT */}
 
                 <Route
                     path="/faculty/exams"
                     element={
-                        <Exams />
+                        <ProtectedRoute allowedRole="faculty">
+                            <Exams />
+                        </ProtectedRoute>
                     }
                 />
-
-
-                {/* SEATING ARRANGEMENT */}
 
                 <Route
                     path="/faculty/seating"
                     element={
-                        <SeatingPlan />
+                        <ProtectedRoute allowedRole="faculty">
+                            <SeatingPlan />
+                        </ProtectedRoute>
                     }
                 />
 
-
-                {/* STUDENT DASHBOARD */}
+                <Route
+                    path="/faculty/allocation"
+                    element={
+                        <ProtectedRoute allowedRole="faculty">
+                            <FacultyAllocation />
+                        </ProtectedRoute>
+                    }
+                />
 
                 <Route
                     path="/student/dashboard"
                     element={
-                        <StudentDashboard />
+                        <ProtectedRoute allowedRole="student">
+                            <StudentDashboard />
+                        </ProtectedRoute>
                     }
                 />
-
             </Routes>
-
         </BrowserRouter>
-
     );
-
 }
-
 
 export default App;

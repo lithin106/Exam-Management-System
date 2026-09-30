@@ -1,26 +1,34 @@
 const express = require("express");
+const multer = require("multer");
 
-const protect =
-    require("../middleware/authMiddleware");
-
-const authorizeRoles =
-    require("../middleware/roleMiddleware");
+const protect = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 
 const {
     generateSeating,
     getSeatingPlan,
     deleteSeatingPlan,
-    downloadSeatingPDF
+    downloadSeatingPDF,
+    downloadNoticeBoardPDF,
+    uploadOutputTemplate
 } = require("../controllers/seatingController");
 
+const router = express.Router();
 
-const router =
-    express.Router();
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, "uploads/");
+    },
+    filename: function (req, file, cb) {
+        const uniqueName =
+            Date.now() + "-" + file.originalname;
+        cb(null, uniqueName);
+    }
+});
 
-
-// ======================================================
-// GENERATE SEATING
-// ======================================================
+const upload = multer({
+    storage
+});
 
 router.post(
     "/generate",
@@ -29,11 +37,6 @@ router.post(
     generateSeating
 );
 
-
-// ======================================================
-// GET SEATING PLAN
-// ======================================================
-
 router.get(
     "/:examId",
     protect,
@@ -41,10 +44,13 @@ router.get(
     getSeatingPlan
 );
 
-
-// ======================================================
-// DOWNLOAD SEATING PDF
-// ======================================================
+router.post(
+    "/:examId/template",
+    protect,
+    authorizeRoles("faculty"),
+    upload.single("template"),
+    uploadOutputTemplate
+);
 
 router.get(
     "/:examId/pdf",
@@ -53,10 +59,12 @@ router.get(
     downloadSeatingPDF
 );
 
-
-// ======================================================
-// DELETE SEATING PLAN
-// ======================================================
+router.get(
+    "/:examId/notice-board",
+    protect,
+    authorizeRoles("faculty"),
+    downloadNoticeBoardPDF
+);
 
 router.delete(
     "/:examId",
@@ -64,6 +72,5 @@ router.delete(
     authorizeRoles("faculty"),
     deleteSeatingPlan
 );
-
 
 module.exports = router;

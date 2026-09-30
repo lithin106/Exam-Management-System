@@ -1,426 +1,234 @@
-// ======================================================
-// AUTOMATED EXAM SEATING ALGORITHM
-// ======================================================
-//
-// Goals:
-// 1. Assign eligible students
-// 2. Respect classroom capacity
-// 3. Use minimum number of rooms
-// 4. Fill rooms efficiently before opening another room
-// 5. Allocate seats row-wise and column-wise
-// 6. Mix departments where possible
-// 7. Keep allocation deterministic
-// ======================================================
+const DESK_COLUMNS = {
+    left:   [1, 3],
+    middle: [4, 6],
+    right:  [7, 9]
+};
 
+const getDefectiveSet = (defectiveDesks) => {
+    const blocked = new Set();
+    if (!Array.isArray(defectiveDesks)) return blocked;
 
-// ======================================================
-// GENERATE SEATS ROOM BY ROOM
-// ======================================================
+    defectiveDesks.forEach(({ row, desk }) => {
+        const cols = DESK_COLUMNS[desk];
+        if (cols) {
+            cols.forEach(col => {
+                blocked.add(`${row}-${col}`);
+            });
+        }
+    });
 
-const generateSeats = (rooms, studentCount) => {
+    return blocked;
+};
 
-    const seats = [];
+const getRoomDefectiveDesks = (room, roomConfigurations) => {
+    if (!Array.isArray(roomConfigurations) || roomConfigurations.length === 0) {
+        return [];
+    }
 
-    let remainingStudents = studentCount;
+    const roomId = room._id ? room._id.toString() : String(room.roomNumber);
 
+    for (const config of roomConfigurations) {
+        const configRoomId = config.room?._id
+            ? config.room._id.toString()
+            : config.room
+                ? String(config.room)
+                : "";
 
-    for (const room of rooms) {
+        if (configRoomId === roomId) {
+            return config.defectiveDesks || [];
+        }
+    }
 
-        if (remainingStudents <= 0) {
-            break;
+    return [];
+};
+
+const generateSeatingPlan = (students, rooms, roomConfigurations) => {
+    const eligibleStudents = students.filter(
+        student => student.isEligible !== false
+    );
+
+    const orderedStudents = [...eligibleStudents];
+
+    const orderedRooms = [...rooms];
+
+    const assignments = [];
+    const assignedStudentIds = new Set();
+
+    let studentIndex = 0;
+
+    for (const room of orderedRooms) {
+        const rows = Number(room.rows) || 0;
+        const columns = Number(room.columns) || 0;
+
+        if (rows <= 0 || columns <= 0) {
+            continue;
         }
 
+        const usableColumns = [];
 
-        const seatsToUse =
-            Math.min(
-                room.capacity,
-                remainingStudents
-            );
+        if (columns >= 2) {
+            usableColumns.push(1);
+            usableColumns.push(3);
+        }
 
+        if (columns >= 4) {
+            usableColumns.push(4);
+            usableColumns.push(6);
+        }
 
-        let seatsAdded = 0;
+        if (columns >= 6) {
+            usableColumns.push(7);
+            usableColumns.push(9);
+        }
 
+        if (usableColumns.length === 0) {
+            for (let column = 1; column <= columns; column++) {
+                if (column % 2 === 1) {
+                    usableColumns.push(column);
+                }
+            }
+        }
 
-        for (
-            let row = 1;
-            row <= room.rows;
-            row++
-        ) {
+        const defectiveDesks = getRoomDefectiveDesks(room, roomConfigurations);
+        const blocked = getDefectiveSet(defectiveDesks);
 
-            for (
-                let column = 1;
-                column <= room.columns;
-                column++
-            ) {
+        let roomSeatNumber = 1;
 
-                if (
-                    seatsAdded >= seatsToUse
-                ) {
+        for (const column of usableColumns) {
+            for (let row = 1; row <= rows; row++) {
+                if (blocked.has(`${row}-${column}`)) {
+                    continue;
+                }
+
+                if (studentIndex >= orderedStudents.length) {
                     break;
                 }
 
+                const student = orderedStudents[studentIndex];
 
-                seats.push({
-
+                assignments.push({
+                    student,
                     room,
-
                     row,
-
                     column,
-
                     seatNumber:
-                        `${room.roomNumber}-R${row}-C${column}`
-
+                        `R${row}-C${column}`,
+                    department:
+                        student.department
                 });
 
+                assignedStudentIds.add(
+                    String(student._id)
+                );
 
-                seatsAdded++;
-
+                studentIndex++;
+                roomSeatNumber++;
             }
 
-
-            if (
-                seatsAdded >= seatsToUse
-            ) {
+            if (studentIndex >= orderedStudents.length) {
                 break;
             }
-
         }
 
-
-        remainingStudents -= seatsAdded;
-
-    }
-
-
-    return seats;
-
-};
-
-
-// ======================================================
-// GROUP STUDENTS BY DEPARTMENT
-// ======================================================
-
-const groupByDepartment = (students) => {
-
-    const departments = {};
-
-
-    for (const student of students) {
-
-        const department =
-            student.department || "UNKNOWN";
-
-
-        if (
-            !departments[department]
-        ) {
-
-            departments[department] = [];
-
+        if (studentIndex >= orderedStudents.length) {
+            break;
         }
-
-
-        departments[department].push(
-            student
-        );
-
     }
-
-
-    return departments;
-
-};
-
-
-// ======================================================
-// CREATE ORDERED STUDENT LIST
-// ======================================================
-//
-// We take students from different departments
-// one after another whenever possible.
-//
-// Example:
-//
-// CSE1
-// ME1
-// ECE1
-// CSE2
-// ME2
-// ECE2
-//
-// instead of:
-//
-// CSE1
-// CSE2
-// CSE3
-// ME1
-// ME2
-//
-// ======================================================
-
-const createDepartmentMixedOrder = (
-    students
-) => {
-
-    const departments =
-        groupByDepartment(students);
-
-
-    const departmentNames =
-        Object.keys(departments);
-
-
-    // Sort departments by number
-    // of remaining students.
-    //
-    // Largest department first.
-
-    departmentNames.sort(
-        (a, b) =>
-            departments[b].length -
-            departments[a].length
-    );
-
-
-    const orderedStudents = [];
-
-
-    while (
-        departmentNames.some(
-            department =>
-                departments[department].length > 0
-        )
-    ) {
-
-
-        // Re-sort after every round
-        // so departments with more
-        // remaining students get used.
-
-        departmentNames.sort(
-            (a, b) =>
-                departments[b].length -
-                departments[a].length
-        );
-
-
-        for (
-            const department
-            of departmentNames
-        ) {
-
-            if (
-                departments[department].length === 0
-            ) {
-
-                continue;
-
-            }
-
-
-            const student =
-                departments[
-                    department
-                ].shift();
-
-
-            orderedStudents.push(
-                student
-            );
-
-        }
-
-    }
-
-
-    return orderedStudents;
-
-};
-
-
-// ======================================================
-// MAIN ALGORITHM
-// ======================================================
-
-const generateSeatingPlan = (
-    students,
-    rooms
-) => {
-
-
-    // --------------------------------------------------
-    // SORT ROOMS BY CAPACITY
-    // --------------------------------------------------
-    //
-    // Largest room first.
-    //
-    // Example:
-    //
-    // Room A = 60
-    // Room B = 30
-    // Room C = 30
-    //
-    // 45 students:
-    //
-    // Room A → 45
-    // Room B → 0
-    // Room C → 0
-    //
-    // --------------------------------------------------
-
-    const sortedRooms =
-        [...rooms].sort(
-            (a, b) =>
-                b.capacity -
-                a.capacity
-        );
-
-
-    // --------------------------------------------------
-    // CREATE ONLY THE REQUIRED NUMBER OF SEATS
-    // --------------------------------------------------
-
-    const seats =
-        generateSeats(
-            sortedRooms,
-            students.length
-        );
-
-
-    // --------------------------------------------------
-    // CREATE DETERMINISTIC STUDENT ORDER
-    // --------------------------------------------------
-
-    const orderedStudents =
-        createDepartmentMixedOrder(
-            students
-        );
-
-
-    const assignments = [];
-
-
-    // --------------------------------------------------
-    // ASSIGN STUDENTS
-    // --------------------------------------------------
-
-    const assignmentCount =
-        Math.min(
-            orderedStudents.length,
-            seats.length
-        );
-
-
-    for (
-        let i = 0;
-        i < assignmentCount;
-        i++
-    ) {
-
-        const student =
-            orderedStudents[i];
-
-
-        const seat =
-            seats[i];
-
-
-        assignments.push({
-
-            student,
-
-            room:
-                seat.room,
-
-            row:
-                seat.row,
-
-            column:
-                seat.column,
-
-            seatNumber:
-                seat.seatNumber,
-
-            department:
-                student.department
-
-        });
-
-    }
-
-
-    // --------------------------------------------------
-    // FIND UNASSIGNED STUDENTS
-    // --------------------------------------------------
-
-    const assignedStudentIds =
-        new Set(
-            assignments.map(
-                assignment =>
-                    assignment.student._id.toString()
-            )
-        );
-
 
     const unassignedStudents =
-        students.filter(
+        orderedStudents.filter(
             student =>
                 !assignedStudentIds.has(
-                    student._id.toString()
+                    String(student._id)
                 )
         );
-
-
-    // --------------------------------------------------
-    // DETERMINE ROOMS ACTUALLY USED
-    // --------------------------------------------------
 
     const usedRoomIds =
         new Set(
             assignments.map(
                 assignment =>
-                    assignment.room._id.toString()
+                    assignment.room._id
+                        ? assignment.room._id.toString()
+                        : String(
+                            assignment.room.roomNumber
+                        )
             )
         );
 
+    const totalPhysicalSeats =
+        orderedRooms.reduce(
+            (total, room) =>
+                total +
+                (Number(room.rows) || 0) *
+                (Number(room.columns) || 0),
+            0
+        );
 
-    // --------------------------------------------------
-    // RETURN RESULT
-    // --------------------------------------------------
+    const totalSeats =
+        orderedRooms.reduce(
+            (total, room) => {
+                const rows =
+                    Number(room.rows) || 0;
+
+                const columns =
+                    Number(room.columns) || 0;
+
+                let usable;
+                if (columns >= 2) {
+                    usable =
+                        columns >= 6
+                            ? 6
+                            : columns >= 4
+                                ? 4
+                                : 2;
+                } else {
+                    usable = columns;
+                }
+
+                let roomTotal = rows * usable;
+
+                const defectiveDesks = getRoomDefectiveDesks(room, roomConfigurations);
+                if (defectiveDesks.length > 0) {
+                    const blocked = getDefectiveSet(defectiveDesks);
+                    const usableColumns = [];
+                    if (columns >= 2) { usableColumns.push(1); usableColumns.push(3); }
+                    if (columns >= 4) { usableColumns.push(4); usableColumns.push(6); }
+                    if (columns >= 6) { usableColumns.push(7); usableColumns.push(9); }
+
+                    let blockedCount = 0;
+                    for (const col of usableColumns) {
+                        for (let r = 1; r <= rows; r++) {
+                            if (blocked.has(`${r}-${col}`)) {
+                                blockedCount++;
+                            }
+                        }
+                    }
+                    roomTotal -= blockedCount;
+                }
+
+                return total + roomTotal;
+            },
+            0
+        );
 
     return {
-
         assignments,
-
         unassignedStudents,
-
         totalStudents:
-            students.length,
-
+            orderedStudents.length,
         assignedStudents:
             assignments.length,
-
         unassignedCount:
             unassignedStudents.length,
-
-        totalSeats:
-            seats.length,
-
+        totalSeats,
+        totalPhysicalSeats,
         usedRooms:
             usedRoomIds.size,
-
         totalRooms:
-            sortedRooms.length
-
+            orderedRooms.length
     };
-
 };
 
-
 module.exports = {
-
     generateSeatingPlan
-
 };

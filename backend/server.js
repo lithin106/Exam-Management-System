@@ -34,6 +34,9 @@ const examRoutes =
 const seatingRoutes =
     require("./routes/seatingRoutes");
 
+const studentPortalRoutes =
+    require("./routes/studentPortalRoutes");
+
 
 // ==========================================
 // EXPRESS APPLICATION
@@ -96,6 +99,11 @@ app.use(
 app.use(
     "/api/seating",
     seatingRoutes
+);
+
+app.use(
+    "/api/student-portal",
+    studentPortalRoutes
 );
 
 

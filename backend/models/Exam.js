@@ -46,6 +46,61 @@ const examSchema = new mongoose.Schema(
             }
         ],
 
+        // ==================================================
+        // SEATING CONFIGURATION
+        // ==================================================
+
+        studentsPerBench: {
+            type: Number,
+            default: 2,
+            min: 1
+        },
+
+        commonPaperGroups: {
+            type: String,
+            default: "",
+            trim: true
+        },
+
+        // ==================================================
+        // OUTPUT TEMPLATE
+        // ==================================================
+        //
+        // Stores the path of the uploaded college
+        // seating-plan header/template image.
+        //
+
+        outputTemplate: {
+            type: String,
+            default: ""
+        },
+
+        roomConfigurations: [
+            {
+                room: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "Room"
+                },
+                defectiveDesks: [
+                    {
+                        row: {
+                            type: Number,
+                            required: true
+                        },
+                        desk: {
+                            type: String,
+                            enum: [
+                                "left",
+                                "middle",
+                                "right"
+                            ],
+                            required: true
+                        }
+                    }
+                ]
+            }
+        ],
+
         status: {
             type: String,
             enum: [
@@ -67,4 +122,8 @@ const examSchema = new mongoose.Schema(
     }
 );
 
-module.exports = mongoose.model("Exam", examSchema);
+module.exports =
+    mongoose.model(
+        "Exam",
+        examSchema
+    );

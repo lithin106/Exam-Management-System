@@ -11,23 +11,44 @@ const roomSchema = new mongoose.Schema(
 
         building: {
             type: String,
-            default: ""
+            default: "",
+            trim: true
         },
 
         floor: {
             type: String,
-            default: ""
+            default: "",
+            trim: true
+        },
+
+        leftDeskBenches: {
+            type: Number,
+            min: 1
+        },
+
+        middleDeskBenches: {
+            type: Number,
+            min: 1
+        },
+
+        rightDeskBenches: {
+            type: Number,
+            min: 1
         },
 
         rows: {
             type: Number,
-            required: true,
             min: 1
         },
 
         columns: {
             type: Number,
-            required: true,
+            default: 6
+        },
+
+        studentsPerBench: {
+            type: Number,
+            default: 2,
             min: 1
         },
 

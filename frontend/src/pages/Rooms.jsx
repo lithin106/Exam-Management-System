@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
+import ThemeToggle from "../components/ThemeToggle";
 
 function Rooms() {
-
     const navigate = useNavigate();
 
     const [rooms, setRooms] = useState([]);
-
     const [form, setForm] = useState({
         roomNumber: "",
         building: "",
@@ -17,135 +16,93 @@ function Rooms() {
     });
 
     const [loading, setLoading] = useState(false);
-
     const [error, setError] = useState("");
-
     const [message, setMessage] = useState("");
-
-
-    // ==========================================
-    // FETCH ROOMS
-    // ==========================================
+    const [deleteRoomId, setDeleteRoomId] = useState(null);
+    const [deleteRoomName, setDeleteRoomName] = useState("");
 
     const fetchRooms = async () => {
-
         try {
-
             setError("");
-
-            const response =
-                await API.get("/rooms");
-
-            setRooms(
-                response.data.rooms || []
-            );
-
+            const response = await API.get("/rooms");
+            setRooms(response.data.rooms || []);
         } catch (error) {
-
-            console.error(
-                "Fetch rooms error:",
-                error
-            );
-
+            console.error("Fetch rooms error:", error);
             setError(
                 error.response?.data?.message ||
-                "Unable to fetch rooms"
+                "Unable to fetch rooms."
             );
-
         }
     };
 
-
     useEffect(() => {
-
         fetchRooms();
-
     }, []);
 
-
-    // ==========================================
-    // HANDLE INPUT
-    // ==========================================
-
     const handleChange = (event) => {
-
-        const {
-            name,
-            value
-        } = event.target;
-
-        setForm({
-            ...form,
+        const { name, value } = event.target;
+        setForm((prev) => ({
+            ...prev,
             [name]: value
-        });
-
+        }));
     };
 
+    const isValidDimension = (val) => {
+        if (val === undefined || val === null || val === "") return false;
+        const str = String(val).trim();
+        return /^[1-9]\d*$/.test(str);
+    };
 
-    // ==========================================
-    // ADD ROOM
-    // ==========================================
+    const allDimensionsValid =
+        isValidDimension(form.rows) &&
+        isValidDimension(form.columns);
+
+    const computeUsableSeats = (cols) => {
+        const c = Number(cols) || 0;
+        return c >= 6 ? 6 : c >= 4 ? 4 : c >= 2 ? 2 : c;
+    };
+
+    const usableSeats = allDimensionsValid
+        ? Number(form.rows) * computeUsableSeats(form.columns)
+        : 0;
 
     const handleSubmit = async (event) => {
-
         event.preventDefault();
 
+        if (
+            !form.roomNumber.trim() ||
+            !form.building.trim() ||
+            !String(form.floor).trim()
+        ) {
+            setError("All fields are required.");
+            return;
+        }
+
+        if (!allDimensionsValid) {
+            setError("Number of desk rows and seats per row must be positive whole numbers.");
+            return;
+        }
+
+        const rows = Number(form.rows);
+        const columns = Number(form.columns);
+
+        setLoading(true);
         setError("");
         setMessage("");
-        setLoading(true);
-
 
         try {
-
-            const rows =
-                Number(form.rows);
-
-            const columns =
-                Number(form.columns);
-
-
-            if (
-                rows <= 0 ||
-                columns <= 0
-            ) {
-
-                setError(
-                    "Rows and columns must be greater than zero."
-                );
-
-                setLoading(false);
-
-                return;
-            }
-
-
-            const response =
-                await API.post(
-                    "/rooms",
-                    {
-                        roomNumber:
-                            form.roomNumber,
-
-                        building:
-                            form.building,
-
-                        floor:
-                            form.floor,
-
-                        rows,
-
-                        columns
-                    }
-                );
-
+            const response = await API.post("/rooms", {
+                roomNumber: form.roomNumber.trim(),
+                building: form.building.trim(),
+                floor: String(form.floor).trim(),
+                rows,
+                columns
+            });
 
             setMessage(
-                response.data.message ||
+                response.data?.message ||
                 "Room created successfully."
             );
-
-
-            // Clear form
 
             setForm({
                 roomNumber: "",
@@ -155,540 +112,282 @@ function Rooms() {
                 columns: ""
             });
 
-
-            // Refresh rooms
-
             await fetchRooms();
-
-        }
-
-        catch (error) {
-
-            console.error(
-                "Create room error:",
-                error
-            );
-
+        } catch (error) {
+            console.error("Create room error:", error);
             setError(
                 error.response?.data?.message ||
-                "Unable to create room."
+                "Failed to create room."
             );
-
-        }
-
-        finally {
-
+        } finally {
             setLoading(false);
-
         }
-
     };
 
+    const openDeleteModal = (room) => {
+        setDeleteRoomId(room._id);
+        setDeleteRoomName(room.roomNumber || "this room");
+    };
 
-    // ==========================================
-    // DELETE ROOM
-    // ==========================================
+    const closeDeleteModal = () => {
+        setDeleteRoomId(null);
+        setDeleteRoomName("");
+    };
 
-    const handleDelete = async (roomId) => {
-
-        const confirmed =
-            window.confirm(
-                "Are you sure you want to delete this room?"
-            );
-
-
-        if (!confirmed) {
-            return;
-        }
-
+    const confirmDelete = async () => {
+        if (!deleteRoomId) return;
 
         try {
+            setError("");
+            setMessage("");
 
-            await API.delete(
-                `/rooms/${roomId}`
-            );
+            await API.delete(`/rooms/${deleteRoomId}`);
 
-
-            setMessage(
-                "Room deleted successfully."
-            );
-
-
+            setMessage("Room deleted successfully.");
+            closeDeleteModal();
             await fetchRooms();
-
-        }
-
-        catch (error) {
-
-            console.error(
-                "Delete room error:",
-                error
-            );
-
+        } catch (error) {
+            console.error("Delete room error:", error);
             setError(
                 error.response?.data?.message ||
                 "Unable to delete room."
             );
-
         }
-
     };
-
-
-    // ==========================================
-    // LOGOUT
-    // ==========================================
 
     const logout = () => {
-
         localStorage.removeItem("token");
-
         localStorage.removeItem("user");
-
         navigate("/");
-
     };
 
-
     return (
-
         <div className="dashboard">
-
-
-            {/* =====================================
-                HEADER
-            ===================================== */}
-
             <header className="topbar">
-
-                <div>
-
-                    <h1>
-                        Exam Seating System
-                    </h1>
-
-                    <span>
-                        Faculty Portal
-                    </span>
-
+                <div className="topbar-brand">
+                    <button
+                        className="btn-back"
+                        onClick={() => navigate("/faculty/dashboard")}
+                        title="Back to Dashboard"
+                    >
+                        <span>← Back</span>
+                    </button>
+                    <div>
+                        <h1>Exam Management System</h1>
+                        <span className="portal-tag">Faculty Portal</span>
+                    </div>
                 </div>
 
-
-                <div className="profile">
-
+                <div className="topbar-nav">
+                    <ThemeToggle />
                     <button
-                        onClick={() =>
-                            navigate(
-                                "/faculty/dashboard"
-                            )
-                        }
+                        className="btn-nav-dashboard"
+                        onClick={() => navigate("/faculty/dashboard")}
                     >
                         Dashboard
                     </button>
-
-
-                    <button
-                        onClick={logout}
-                    >
+                    <button className="btn-nav-logout" onClick={logout}>
                         Logout
                     </button>
-
                 </div>
-
             </header>
 
-
-            {/* =====================================
-                MAIN
-            ===================================== */}
-
             <main className="dashboard-content">
+                <div className="page-header">
+                    <div className="page-header-left">
+                        <h2 className="page-title">Examination Rooms</h2>
+                        <p className="page-subtitle">
+                            Configure classrooms and manage usable seating capacities
+                        </p>
+                    </div>
+                </div>
 
-                <h2>
-                    Examination Rooms
-                </h2>
+                <div className="dashboard-card" style={{ marginBottom: "24px" }}>
+                    <h3>Add Examination Room</h3>
 
-                <p>
-                    Add and manage classrooms
-                    used for examinations.
-                </p>
-
-
-                {/* =================================
-                    ADD ROOM
-                ================================= */}
-
-                <div className="dashboard-card">
-
-                    <h3>
-                        Add Examination Room
-                    </h3>
-
-
-                    <form
-                        onSubmit={handleSubmit}
-                        className="room-form"
-                    >
-
+                    <form onSubmit={handleSubmit} className="room-form">
                         <div className="form-grid">
-
-
                             <div>
-
-                                <label>
-                                    Room Number
-                                </label>
-
+                                <label>Room Code / Hall</label>
                                 <input
                                     type="text"
                                     name="roomNumber"
-                                    placeholder="Example: CSE-101"
-                                    value={
-                                        form.roomNumber
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    placeholder="Example: AI062F05-LH"
+                                    value={form.roomNumber}
+                                    onChange={handleChange}
                                     required
                                 />
-
                             </div>
 
-
                             <div>
-
-                                <label>
-                                    Building
-                                </label>
-
+                                <label>Building / Block</label>
                                 <input
                                     type="text"
                                     name="building"
-                                    placeholder="Example: Main Block"
-                                    value={
-                                        form.building
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    placeholder="Example: Academic Block"
+                                    value={form.building}
+                                    onChange={handleChange}
                                     required
                                 />
-
                             </div>
 
-
                             <div>
-
-                                <label>
-                                    Floor
-                                </label>
-
+                                <label>Floor Level</label>
                                 <input
                                     type="text"
                                     name="floor"
-                                    placeholder="Example: 1"
-                                    value={
-                                        form.floor
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    placeholder="Example: 2"
+                                    value={form.floor}
+                                    onChange={handleChange}
                                     required
                                 />
-
                             </div>
 
-
                             <div>
-
-                                <label>
-                                    Rows
-                                </label>
-
+                                <label>Number of Desk Rows</label>
                                 <input
                                     type="number"
                                     name="rows"
+                                    placeholder="Example: 7"
+                                    value={form.rows}
+                                    onChange={handleChange}
                                     min="1"
-                                    placeholder="Example: 5"
-                                    value={
-                                        form.rows
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    step="1"
                                     required
                                 />
-
                             </div>
 
-
                             <div>
-
-                                <label>
-                                    Columns
-                                </label>
-
+                                <label>Seats per Row</label>
                                 <input
                                     type="number"
                                     name="columns"
-                                    min="1"
                                     placeholder="Example: 6"
-                                    value={
-                                        form.columns
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    value={form.columns}
+                                    onChange={handleChange}
+                                    min="1"
+                                    step="1"
                                     required
                                 />
-
                             </div>
-
                         </div>
 
-
-                        {/* CAPACITY PREVIEW */}
-
-                        {form.rows &&
-                            form.columns && (
-
-                                <div className="capacity-preview">
-
-                                    Capacity:{" "}
-
-                                    <strong>
-                                        {
-                                            Number(
-                                                form.rows
-                                            ) *
-                                            Number(
-                                                form.columns
-                                            )
-                                        }
-                                    </strong>
-
-                                    {" "}seats
-
-                                </div>
-
-                            )}
-
+                        <div className="capacity-preview" style={{ marginTop: "16px", marginBottom: "16px" }}>
+                            <span className="capacity-badge" style={{ fontSize: "14px", fontWeight: 600 }}>
+                                Usable Seats: {usableSeats}
+                            </span>
+                        </div>
 
                         <button
                             type="submit"
-                            disabled={loading}
+                            className="btn-primary"
+                            disabled={loading || !allDimensionsValid}
                         >
-
-                            {loading
-                                ? "Adding Room..."
-                                : "Add Room"
-                            }
-
+                            {loading ? "Adding..." : "Add Room"}
                         </button>
-
                     </form>
 
-
                     {message && (
-
                         <div className="success-message">
-
                             {message}
-
                         </div>
-
                     )}
-
 
                     {error && (
-
                         <div className="error-message">
-
                             {error}
-
                         </div>
-
                     )}
-
                 </div>
 
-
-                {/* =================================
-                    ROOM LIST
-                ================================= */}
-
                 <div className="dashboard-card">
-
                     <div className="table-header">
-
                         <div>
-
-                            <h3>
-                                Existing Rooms
-                            </h3>
-
-                            <p>
-                                Total rooms:{" "}
-                                <strong>
-                                    {rooms.length}
-                                </strong>
+                            <h3>Registered Examination Rooms</h3>
+                            <p style={{ margin: 0, color: "#64748b", fontSize: "13px" }}>
+                                Total: <strong>{rooms.length}</strong> active rooms
                             </p>
-
                         </div>
-
-
-                        <button
-                            onClick={fetchRooms}
-                        >
-                            Refresh
-                        </button>
-
                     </div>
 
-
                     {rooms.length === 0 ? (
-
-                        <p>
-                            No examination rooms
-                            found.
+                        <p style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8" }}>
+                            No rooms added yet. Create a room above.
                         </p>
-
                     ) : (
-
                         <div className="table-container">
-
                             <table>
-
                                 <thead>
-
                                     <tr>
-
-                                        <th>
-                                            #
-                                        </th>
-
-                                        <th>
-                                            Room
-                                        </th>
-
-                                        <th>
-                                            Building
-                                        </th>
-
-                                        <th>
-                                            Floor
-                                        </th>
-
-                                        <th>
-                                            Rows
-                                        </th>
-
-                                        <th>
-                                            Columns
-                                        </th>
-
-                                        <th>
-                                            Capacity
-                                        </th>
-
-                                        <th>
-                                            Action
-                                        </th>
-
+                                        <th>Room Code</th>
+                                        <th>Building</th>
+                                        <th>Floor</th>
+                                        <th>Rows</th>
+                                        <th>Seats per Row</th>
+                                        <th>Usable Capacity</th>
+                                        <th>Action</th>
                                     </tr>
-
                                 </thead>
-
-
                                 <tbody>
-
-                                    {rooms.map(
-                                        (
-                                            room,
-                                            index
-                                        ) => (
-
-                                            <tr
-                                                key={
-                                                    room._id
-                                                }
-                                            >
-
-                                                <td>
-                                                    {
-                                                        index + 1
-                                                    }
+                                    {rooms.map((room) => {
+                                        return (
+                                            <tr key={room._id}>
+                                                <td style={{ fontWeight: 600 }}>
+                                                    {room.roomNumber}
                                                 </td>
-
+                                                <td>{room.building}</td>
+                                                <td>Floor {room.floor}</td>
+                                                <td>{room.rows || "-"}</td>
+                                                <td>{room.columns || "-"}</td>
                                                 <td>
-                                                    {
-                                                        room.roomNumber
-                                                    }
+                                                    <span className="badge-pill badge-blue">
+                                                        Usable Seats: {room.capacity}
+                                                    </span>
                                                 </td>
-
                                                 <td>
-                                                    {
-                                                        room.building
-                                                    }
-                                                </td>
-
-                                                <td>
-                                                    {
-                                                        room.floor
-                                                    }
-                                                </td>
-
-                                                <td>
-                                                    {
-                                                        room.rows
-                                                    }
-                                                </td>
-
-                                                <td>
-                                                    {
-                                                        room.columns
-                                                    }
-                                                </td>
-
-                                                <td>
-                                                    {
-                                                        room.capacity
-                                                    }
-                                                </td>
-
-                                                <td>
-
                                                     <button
-                                                        onClick={() =>
-                                                            handleDelete(
-                                                                room._id
-                                                            )
-                                                        }
+                                                        className="btn-danger"
+                                                        onClick={() => openDeleteModal(room)}
                                                     >
                                                         Delete
                                                     </button>
-
                                                 </td>
-
                                             </tr>
-
-                                        )
-                                    )}
-
+                                        );
+                                    })}
                                 </tbody>
-
                             </table>
-
                         </div>
-
                     )}
-
                 </div>
-
             </main>
 
+            {deleteRoomId && (
+                <div className="modal-overlay">
+                    <div className="modal-card">
+                        <h3>Confirm Room Deletion</h3>
+                        <p>
+                            Are you sure you want to delete room <strong>{deleteRoomName}</strong>?
+                            This action cannot be undone.
+                        </p>
+                        <div className="modal-actions">
+                            <button
+                                className="btn-cancel"
+                                onClick={closeDeleteModal}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="btn-delete"
+                                onClick={confirmDelete}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-
     );
 }
 

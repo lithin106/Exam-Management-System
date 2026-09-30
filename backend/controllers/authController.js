@@ -1,10 +1,8 @@
 const User = require("../models/User");
+const Student = require("../models/Student");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-// ==========================
-// REGISTER USER
-// ==========================
 const register = async (req, res) => {
     try {
         const {
@@ -16,7 +14,6 @@ const register = async (req, res) => {
             facultyId
         } = req.body;
 
-        // Validate role
         if (!["faculty", "student"].includes(role)) {
             return res.status(400).json({
                 success: false,
@@ -24,26 +21,64 @@ const register = async (req, res) => {
             });
         }
 
-        // Check existing user
+        if (role === "faculty") {
+            if (!facultyId || String(facultyId).trim().length < 2) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Faculty ID is mandatory to register a faculty account."
+                });
+            }
+        }
+
+        if (role === "student") {
+            if (!studentId || String(studentId).trim().length < 2) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Student USN / ID is mandatory to register a student account."
+                });
+            }
+
+            const studentRecord = await Student.findOne({
+                studentId: String(studentId).trim().toUpperCase()
+            });
+
+            if (!studentRecord) {
+                return res.status(400).json({
+                    success: false,
+                    message: "This USN is not found in the system. Please contact your department coordinator."
+                });
+            }
+
+            const existingStudentAccount = await User.findOne({
+                studentId: String(studentId).trim().toUpperCase(),
+                role: "student"
+            });
+
+            if (existingStudentAccount) {
+                return res.status(400).json({
+                    success: false,
+                    message: "An account already exists for this USN."
+                });
+            }
+        }
+
         const existingUser = await User.findOne({ email });
 
         if (existingUser) {
             return res.status(400).json({
                 success: false,
-                message: "User already exists"
+                message: "User already exists with this email address."
             });
         }
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user
         const user = await User.create({
             name,
             email,
             password: hashedPassword,
             role,
-            studentId: role === "student" ? studentId : null,
+            studentId: role === "student" ? String(studentId).trim().toUpperCase() : null,
             facultyId: role === "faculty" ? facultyId : null
         });
 

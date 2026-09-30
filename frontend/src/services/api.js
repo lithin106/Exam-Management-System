@@ -1,23 +1,20 @@
 import axios from "axios";
 
+
 const API = axios.create({
 
     baseURL:
-        "http://localhost:5000/api",
-
-    headers: {
-        "Content-Type":
-            "application/json"
-    }
+        "http://localhost:5000/api"
 
 });
 
 
 // =====================================================
-// ADD JWT TOKEN TO EVERY REQUEST
+// ADD JWT TOKEN
 // =====================================================
 
 API.interceptors.request.use(
+
     (config) => {
 
         const token =
@@ -34,6 +31,29 @@ API.interceptors.request.use(
         }
 
 
+        // IMPORTANT:
+        // Do NOT force application/json
+        // when uploading FormData.
+
+        if (
+            config.data instanceof FormData
+        ) {
+
+            delete config.headers[
+                "Content-Type"
+            ];
+
+        }
+        else {
+
+            config.headers[
+                "Content-Type"
+            ] =
+                "application/json";
+
+        }
+
+
         return config;
 
     },
@@ -45,11 +65,12 @@ API.interceptors.request.use(
         );
 
     }
+
 );
 
 
 // =====================================================
-// HANDLE UNAUTHORIZED RESPONSE
+// HANDLE UNAUTHORIZED
 // =====================================================
 
 API.interceptors.response.use(

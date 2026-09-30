@@ -1,125 +1,194 @@
-const Student = require("../models/Student");
-const User = require("../models/User");
-const parseStudentExcel = require("../utils/excelParser");
-const bcrypt = require("bcryptjs");
-const fs = require("fs");
+const Student =
+    require("../models/Student");
+
+const parseStudentExcel =
+    require("../utils/excelParser");
+
+const fs =
+    require("fs");
 
 
 // ==========================================
 // UPLOAD STUDENTS FROM EXCEL
 // ==========================================
 
-const uploadStudents = async (req, res) => {
+const uploadStudents = async (
+    req,
+    res
+) => {
 
     try {
 
         if (!req.file) {
-            return res.status(400).json({
-                success: false,
-                message: "Please upload an Excel file"
-            });
-        }
-
-        const students = parseStudentExcel(
-            req.file.path
-        );
-
-        if (!students.length) {
-
-            fs.unlinkSync(req.file.path);
 
             return res.status(400).json({
+
                 success: false,
-                message: "Excel file contains no student data"
+
+                message:
+                    "Please upload an Excel file"
+
             });
+
         }
+
+
+        const students =
+            parseStudentExcel(
+                req.file.path
+            );
+
+
+        if (
+            !students.length
+        ) {
+
+            fs.unlinkSync(
+                req.file.path
+            );
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Excel file contains no valid student records"
+
+            });
+
+        }
+
 
         let insertedStudents = 0;
+
         let skippedStudents = 0;
 
-        for (const student of students) {
 
-            // Basic validation
+        // ==========================================
+        // INSERT STUDENTS
+        // ==========================================
+
+        for (
+            const student
+            of students
+        ) {
+
+            // Minimum required data:
+            //
+            // USN
+            // Name
+
             if (
                 !student.studentId ||
-                !student.name ||
-                !student.email ||
-                !student.department ||
-                !student.year
+                !student.name
             ) {
 
                 skippedStudents++;
 
                 continue;
+
             }
 
-            // Check if student already exists
+
+            // ======================================
+            // CHECK DUPLICATE USN
+            // ======================================
+
             const existingStudent =
                 await Student.findOne({
-                    $or: [
-                        { studentId: student.studentId },
-                        { email: student.email }
-                    ]
+
+                    studentId:
+                        student.studentId
+
                 });
 
-            if (existingStudent) {
+
+            if (
+                existingStudent
+            ) {
+
                 skippedStudents++;
+
                 continue;
+
             }
 
-            // Create student
-            await Student.create(student);
 
-            // Create login account
-            const defaultPassword =
-                student.studentId;
+            // ======================================
+            // CREATE STUDENT
+            // ======================================
 
-            const hashedPassword =
-                await bcrypt.hash(
-                    defaultPassword,
-                    10
-                );
+            await Student.create({
 
-            const existingUser =
-                await User.findOne({
-                    email: student.email
-                });
+                studentId:
+                    student.studentId,
 
-            if (!existingUser) {
+                name:
+                    student.name,
 
-                await User.create({
+                department:
+                    student.department,
 
-                    name: student.name,
+                section:
+                    student.section,
 
-                    email: student.email,
+                semester:
+                    student.semester,
 
-                    password: hashedPassword,
+                labBatch:
+                    student.labBatch,
 
-                    role: "student",
+                isEligible:
+                    true
 
-                    studentId: student.studentId
+            });
 
-                });
-            }
 
             insertedStudents++;
+
         }
 
-        // Remove uploaded Excel file
-        fs.unlinkSync(req.file.path);
 
-        res.status(201).json({
+        // ==========================================
+        // DELETE TEMPORARY FILE
+        // ==========================================
+
+        try {
+
+            fs.unlinkSync(
+                req.file.path
+            );
+
+        } catch (cleanupError) {
+
+            console.log(
+                "Uploaded file cleanup warning:",
+                cleanupError.message
+            );
+
+        }
+
+
+        // ==========================================
+        // RESPONSE
+        // ==========================================
+
+        return res.status(201).json({
 
             success: true,
 
-            message: "Student Excel processed successfully",
+            message:
+                "Student Excel processed successfully",
 
             insertedStudents,
 
             skippedStudents,
 
-            totalRecords: students.length
+            totalRecords:
+                students.length
+
         });
+
 
     } catch (error) {
 
@@ -128,26 +197,40 @@ const uploadStudents = async (req, res) => {
             error
         );
 
+
         if (req.file) {
 
             try {
-                fs.unlinkSync(req.file.path);
-            } catch (err) {
-                console.error(
+
+                fs.unlinkSync(
+                    req.file.path
+                );
+
+            } catch (cleanupError) {
+
+                console.log(
                     "File cleanup failed"
                 );
+
             }
+
         }
 
-        res.status(500).json({
+
+        return res.status(500).json({
 
             success: false,
 
-            message: "Failed to process Excel file",
+            message:
+                "Failed to process student file",
 
-            error: error.message
+            error:
+                error.message
+
         });
+
     }
+
 };
 
 
@@ -155,40 +238,114 @@ const uploadStudents = async (req, res) => {
 // GET ALL STUDENTS
 // ==========================================
 
-const getStudents = async (req, res) => {
+const getStudents = async (
+    req,
+    res
+) => {
 
     try {
 
         const students =
             await Student.find()
                 .sort({
-                    department: 1,
+
                     studentId: 1
+
                 });
 
-        res.json({
+
+        return res.json({
 
             success: true,
 
-            count: students.length,
+            count:
+                students.length,
 
             students
 
         });
 
+
     } catch (error) {
 
-        res.status(500).json({
+        console.error(
+            "Get students error:",
+            error
+        );
+
+
+        return res.status(500).json({
 
             success: false,
 
-            message: "Failed to fetch students"
+            message:
+                "Failed to fetch students"
+
         });
+
     }
+
+};
+
+
+const deleteAllStudents = async (
+    req,
+    res
+) => {
+
+    try {
+
+        const SeatAssignment =
+            require("../models/SeatAssignment");
+
+        const assignmentResult =
+            await SeatAssignment.deleteMany({});
+
+        const studentResult =
+            await Student.deleteMany({});
+
+        return res.json({
+
+            success: true,
+
+            message:
+                `Deleted ${studentResult.deletedCount} students and ${assignmentResult.deletedCount} seat assignments.`,
+
+            deletedStudents:
+                studentResult.deletedCount,
+
+            deletedAssignments:
+                assignmentResult.deletedCount
+
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Delete all students error:",
+            error
+        );
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "Failed to delete students"
+
+        });
+
+    }
+
 };
 
 
 module.exports = {
+
     uploadStudents,
-    getStudents
+
+    getStudents,
+
+    deleteAllStudents
+
 };

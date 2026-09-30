@@ -15,39 +15,30 @@ const studentSchema = new mongoose.Schema(
             trim: true
         },
 
-        email: {
-            type: String,
-            required: true,
-            unique: true,
-            lowercase: true,
-            trim: true
-        },
-
         department: {
             type: String,
-            required: true,
-            trim: true
-        },
-
-        year: {
-            type: String,
-            required: true,
-            trim: true
+            default: "CSE",
+            trim: true,
+            uppercase: true
         },
 
         section: {
             type: String,
-            default: ""
+            default: "",
+            trim: true,
+            uppercase: true
         },
 
         semester: {
             type: String,
-            default: ""
+            default: "7",
+            trim: true
         },
 
-        phone: {
+        labBatch: {
             type: String,
-            default: ""
+            default: "",
+            trim: true
         },
 
         isEligible: {
@@ -60,4 +51,8 @@ const studentSchema = new mongoose.Schema(
     }
 );
 
-module.exports = mongoose.model("Student", studentSchema);
+module.exports =
+    mongoose.model(
+        "Student",
+        studentSchema
+    );
